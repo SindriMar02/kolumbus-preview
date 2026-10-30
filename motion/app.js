@@ -66,6 +66,10 @@ $(document).ready(function () {
   // Smooth scroll on nav click
   var isScrolling = false
 
+  // Webflow's own anchor scroller also takes a[href*="#id"] links 300ms later, offset by the header only, and wins
+  // (section lands under the mobile sticky nav). It skips href="#", so hand the scroll to this module alone.
+  $('.retreat-page-info__link a[data-target]').attr('href', '#')
+
   $(document).on(
     'click',
     '.retreat-page-info__link a[data-target]',
@@ -94,15 +98,36 @@ $(document).ready(function () {
 
         isScrolling = true
 
-        if (window.gsap && window.ScrollToPlugin) {
+        var smoother = window.ScrollSmoother && ScrollSmoother.get()
+        if (smoother) {
+          // Desktop content is transformed by ScrollSmoother, so window scrollTo mis-measures the section: use the smoother
+          smoother.scrollTo($section[0], true, 'top ' + offset + 'px')
+          setTimeout(function () {
+            // Lazy images above the target can load mid-scroll and push it down: settle with one correction
+            var drift = $section[0].getBoundingClientRect().top - offset
+            if (Math.abs(drift) > 4) smoother.scrollTo($section[0], true, 'top ' + offset + 'px')
+            setTimeout(function () {
+              isScrolling = false
+            }, 400)
+          }, 1400)
+        } else if (window.gsap && window.ScrollToPlugin) {
           gsap.to(window, {
             scrollTo: { y: $section[0], offsetY: offset },
             duration: 0.8,
             ease: 'power2.inOut',
             onComplete: function () {
+              // Lazy images above the target can load mid-scroll and push it down: settle with one short correction
+              var drift = $section[0].getBoundingClientRect().top - offset
+              if (Math.abs(drift) > 4) {
+                gsap.to(window, {
+                  scrollTo: { y: $section[0], offsetY: offset },
+                  duration: 0.3,
+                  ease: 'power2.out',
+                })
+              }
               setTimeout(function () {
                 isScrolling = false
-              }, 100)
+              }, 400)
             },
           })
         } else {
